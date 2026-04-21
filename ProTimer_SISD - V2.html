@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProTimer | SISD Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --swiss-red: #D52B1E;
+            --swiss-white: #FFFFFF;
+            --logo-bg: #ffffff; 
+            --status-green: #10b981;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--logo-bg);
+            color: #1e293b;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mono { font-family: 'JetBrains Mono', monospace; }
+
+        .glass-card {
+            background: var(--swiss-white);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            border-radius: 28px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.04), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
+        }
+
+        .timer-card {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            height: 100%;
+            border-top: 8px solid var(--swiss-red);
+        }
+
+        /* Critical State: When timer ends */
+        .timer-card.is-finished {
+            background-color: var(--swiss-red);
+            border-top-color: #991b1b;
+            animation: pulse-red 2s infinite;
+        }
+
+        .timer-card.is-finished .timer-display,
+        .timer-card.is-finished .timer-label,
+        .timer-card.is-finished .mark-30,
+        .timer-card.is-finished .mark-5,
+        .timer-card.is-finished .text-slate-400,
+        .timer-card.is-finished .text-slate-800,
+        .timer-card.is-finished .text-slate-600 {
+            color: white !important;
+        }
+        
+        .timer-card.is-finished .border-y {
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .timer-card.is-finished .reset-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+        }
+
+        .timer-card.is-finished .toggle-btn {
+            background-color: white;
+            color: var(--swiss-red);
+        }
+
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(213, 43, 30, 0.4); }
+            70% { box-shadow: 0 0 0 20px rgba(213, 43, 30, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(213, 43, 30, 0); }
+        }
+
+        .timer-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.07);
+        }
+
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            transition: background-color 0.5s ease;
+        }
+
+        .status-red { background-color: var(--swiss-red); shadow: 0 0 12px rgba(213,43,30,0.4); }
+        .status-green { background-color: var(--status-green); shadow: 0 0 12px rgba(16,185,129,0.4); }
+
+        .hidden { display: none !important; }
+        
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        #timers-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            justify-content: center;
+        }
+        
+        .timer-instance {
+            width: 320px;
+            flex-shrink: 0;
+        }
+
+        .global-control-btn {
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        main { flex: 1; }
+        footer { background-color: #fafafa; }
+    </style>
+</head>
+<body>
+
+    <main id="app-container" class="w-full max-w-[1400px] mx-auto py-6">
+        <div class="flex justify-center mb-8">
+            <img src="https://theinternationalschools.com/dubai/wp-content/uploads/sites/15/2023/12/swiss-international-scientific-school-dubai-logo-the-international-schools-dubai-uae.png" 
+                 alt="SISD Logo" 
+                 class="h-28 object-contain"
+                 onerror="this.style.display='none'">
+        </div>
+
+        <div class="flex flex-col items-center justify-center mb-12 text-center px-4">
+            <div id="global-clock" class="text-7xl md:text-8xl font-black tracking-tighter mono text-slate-900 leading-none">00:00:00</div>
+            <div id="global-date" class="text-[#D52B1E] font-bold tracking-[0.4em] uppercase mt-4 text-xs">Monday, Jan 1</div>
+            
+            <div class="mt-8 flex items-center gap-4">
+                <button id="global-start-btn" class="global-control-btn flex items-center gap-3 bg-emerald-500 hover:bg-emerald-600 px-8 py-3 rounded-2xl shadow-lg shadow-emerald-500/20 text-white transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                    <span class="text-xs font-black uppercase tracking-widest">Start All</span>
+                </button>
+                <button id="global-reset-btn" class="global-control-btn p-3 bg-white border border-slate-200 text-slate-400 hover:text-[#D52B1E] rounded-2xl shadow-sm transition-all" title="Reset All">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+            </div>
+        </div>
+        
+        <div id="timers-list" class="px-4"></div>
+    </main>
+
+    <footer class="w-full py-10 text-center text-slate-400 text-sm border-t border-slate-100 mt-16">
+        <p class="font-semibold text-slate-500">© 2024 Swiss International Scientific School in Dubai. All rights reserved.</p>
+        <p class="text-[10px] mt-2 uppercase tracking-widest font-black text-slate-300">Excellence in International Education</p>
+    </footer>
+
+    <div id="edit-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center hidden p-4">
+        <div class="glass-card p-8 w-full max-w-lg shadow-2xl border-none">
+            <h2 class="text-2xl font-bold mb-8 flex items-center gap-3 text-slate-900">
+                <span class="w-2 h-8 bg-[#D52B1E] rounded-full"></span>
+                Configuration
+            </h2>
+            <div class="grid grid-cols-1 gap-6">
+                <div>
+                    <label class="block text-xs font-bold mb-2 text-slate-400 uppercase tracking-widest">Title</label>
+                    <input type="text" id="modal-title" class="w-full px-4 py-4 rounded-xl outline-none text-lg border border-slate-200 focus:border-[#D52B1E]">
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold mb-2 text-slate-400 uppercase tracking-widest">Minutes</label>
+                        <input type="number" id="modal-duration" class="w-full px-4 py-4 rounded-xl outline-none text-lg border border-slate-200 focus:border-[#D52B1E]" min="1">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold mb-2 text-slate-400 uppercase tracking-widest">Auto-Start Time</label>
+                        <input type="time" id="modal-starttime" class="w-full px-4 py-4 rounded-xl outline-none text-lg border border-slate-200 focus:border-[#D52B1E]">
+                    </div>
+                </div>
+                <div class="flex gap-4 pt-4">
+                    <button id="modal-save" class="flex-2 bg-[#D52B1E] py-4 px-8 rounded-2xl font-bold text-white flex-grow">Apply Changes</button>
+                    <button id="modal-cancel" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 py-4 rounded-2xl font-bold transition-colors">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <template id="timer-template">
+        <div class="timer-instance glass-card p-6 flex flex-col items-center gap-5 timer-card fade-in relative overflow-hidden text-center">
+            <button class="edit-btn absolute top-3 right-3 z-[60] p-2 hover:bg-slate-50 rounded-full transition-all group">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="text-slate-300 group-hover:text-[#D52B1E]"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+            <div class="phase-indicator status-dot status-red mt-2"></div>
+            <div class="flex flex-col gap-1">
+                <h3 class="timer-label text-sm font-black tracking-[0.1em] uppercase text-slate-800">SESSION</h3>
+                <span class="autostart-indicator hidden text-[9px] font-bold uppercase text-[#D52B1E]">@ 00:00</span>
+            </div>
+            <div class="timer-display text-6xl font-black mono tracking-tighter leading-none text-slate-900 transition-colors duration-300">25:00</div>
+            <div class="w-full flex flex-col gap-2 py-3 border-y border-slate-50">
+                <div class="flex justify-between items-center px-2">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">30m MARK</span>
+                    <span class="mark-30 text-sm mono font-bold text-slate-600">--:--</span>
+                </div>
+                <div class="flex justify-between items-center px-2">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">5m MARK</span>
+                    <span class="mark-5 text-sm mono font-bold text-[#D52B1E]">--:--</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button class="toggle-btn p-3 bg-[#D52B1E] text-white rounded-xl transition-all shadow-md hover:scale-105" title="Start/Pause">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+                </button>
+                <button class="reset-btn p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-xl transition-all" title="Reset">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                </button>
+            </div>
+        </div>
+    </template>
+
+    <script>
+        const timersList = document.getElementById('timers-list');
+        const timerTemplate = document.getElementById('timer-template');
+        const clockEl = document.getElementById('global-clock');
+        const dateEl = document.getElementById('global-date');
+        const globalStartBtn = document.getElementById('global-start-btn');
+        const globalResetBtn = document.getElementById('global-reset-btn');
+        const editModal = document.getElementById('edit-modal');
+        const modalTitleInput = document.getElementById('modal-title');
+        const modalDurationInput = document.getElementById('modal-duration');
+        const modalStartTimeInput = document.getElementById('modal-starttime');
+        const modalSave = document.getElementById('modal-save');
+        const modalCancel = document.getElementById('modal-cancel');
+
+        let activeEditingTimer = null;
+        let timers = [];
+        let currentClockStr = "00:00";
+        let isAnyTimerRunning = false;
+
+        function updateGlobalClock() {
+            const now = new Date();
+            const h = now.getHours().toString().padStart(2, '0');
+            const m = now.getMinutes().toString().padStart(2, '0');
+            const s = now.getSeconds().toString().padStart(2, '0');
+            currentClockStr = `${h}:${m}`;
+            clockEl.textContent = `${h}:${m}:${s}`;
+            dateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+            timers.forEach(t => t.checkAutoStart(currentClockStr));
+            updateGlobalUIState();
+        }
+
+        function updateGlobalUIState() {
+            isAnyTimerRunning = timers.some(t => t.isRunning);
+            const btnSpan = globalStartBtn.querySelector('span');
+            const btnIcon = globalStartBtn.querySelector('svg');
+            if (isAnyTimerRunning) {
+                globalStartBtn.classList.replace('bg-emerald-500', 'bg-amber-500');
+                globalStartBtn.classList.replace('shadow-emerald-500/20', 'shadow-amber-500/20');
+                btnSpan.textContent = "Pause All";
+                btnIcon.innerHTML = `<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>`;
+            } else {
+                globalStartBtn.classList.replace('bg-amber-500', 'bg-emerald-500');
+                globalStartBtn.classList.replace('shadow-amber-500/20', 'shadow-emerald-500/20');
+                btnSpan.textContent = "Start All";
+                btnIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+            }
+        }
+
+        globalStartBtn.onclick = () => {
+            if (isAnyTimerRunning) timers.forEach(t => t.pause());
+            else timers.forEach(t => t.start());
+            updateGlobalUIState();
+        };
+
+        globalResetBtn.onclick = () => {
+            timers.forEach(t => t.reset());
+            updateGlobalUIState();
+        };
+
+        const timerConfigs = [
+            { id: 1, title: 'Session A', minutes: 25 },
+            { id: 2, title: 'Session B', minutes: 120 },
+            { id: 3, title: 'Session C', minutes: 5 },
+            { id: 4, title: 'Session D', minutes: 75 }
+        ];
+
+        class Timer {
+            constructor(config, container) {
+                this.id = config.id;
+                this.title = config.title;
+                this.totalSeconds = config.minutes * 60;
+                this.timeLeft = this.totalSeconds;
+                this.timerId = null;
+                this.isRunning = false;
+                this.scheduledStartTime = "";
+
+                const clone = timerTemplate.content.cloneNode(true);
+                this.el = clone.querySelector('.timer-instance');
+                this.displayEl = this.el.querySelector('.timer-display');
+                this.labelEl = this.el.querySelector('.timer-label');
+                this.toggleBtn = this.el.querySelector('.toggle-btn');
+                this.mark30El = this.el.querySelector('.mark-30');
+                this.mark5El = this.el.querySelector('.mark-5');
+                this.autoBadge = this.el.querySelector('.autostart-indicator');
+                this.phaseDot = this.el.querySelector('.phase-indicator');
+
+                this.toggleBtn.onclick = () => this.toggle();
+                this.el.querySelector('.edit-btn').onclick = (e) => { e.stopPropagation(); this.openEdit(); };
+                this.el.querySelector('.reset-btn').onclick = () => this.reset();
+
+                this.updateUI();
+                container.appendChild(this.el);
+            }
+
+            updateUI() {
+                const mins = Math.floor(this.timeLeft / 60);
+                const secs = this.timeLeft % 60;
+                this.displayEl.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                this.labelEl.textContent = this.title;
+                
+                // Reset colors
+                this.displayEl.classList.remove('text-[#D52B1E]', 'text-orange-500', 'text-slate-900');
+
+                // Color Logic
+                if (this.timeLeft === 0) {
+                    // Handled by CSS .is-finished class
+                } else if (this.timeLeft <= 300) {
+                    // < 5 mins: Red
+                    this.displayEl.classList.add('text-[#D52B1E]');
+                } else if (this.timeLeft <= 1800) {
+                    // < 30 mins: Orange
+                    this.displayEl.classList.add('text-orange-500');
+                } else {
+                    // Normal state
+                    this.displayEl.classList.add('text-slate-900');
+                }
+
+                // Finish State Logic
+                if (this.timeLeft === 0) {
+                    this.el.classList.add('is-finished');
+                } else {
+                    this.el.classList.remove('is-finished');
+                }
+
+                if (this.scheduledStartTime) {
+                    this.autoBadge.classList.remove('hidden');
+                    this.autoBadge.textContent = `@ ${this.scheduledStartTime}`;
+                } else {
+                    this.autoBadge.classList.add('hidden');
+                }
+                this.updatePhaseIndicator();
+                this.calculateMilestones();
+            }
+
+            updatePhaseIndicator() {
+                const elapsed = this.totalSeconds - this.timeLeft;
+                const isFirstHour = elapsed < 3600;
+                const isLast15 = this.timeLeft < 900;
+                if (isFirstHour || isLast15) {
+                    this.phaseDot.className = 'phase-indicator status-dot status-red';
+                } else {
+                    this.phaseDot.className = 'phase-indicator status-dot status-green';
+                }
+            }
+
+            calculateMilestones() {
+                const now = new Date();
+                if (this.totalSeconds > 1800) {
+                    const diff = Math.max(0, this.timeLeft - 1800);
+                    const time = new Date(now.getTime() + diff * 1000);
+                    this.mark30El.textContent = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                } else this.mark30El.textContent = '---';
+
+                if (this.totalSeconds > 300) {
+                    const diff = Math.max(0, this.timeLeft - 300);
+                    const time = new Date(now.getTime() + diff * 1000);
+                    this.mark5El.textContent = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                } else this.mark5El.textContent = '---';
+            }
+
+            checkAutoStart(currentTimeStr) {
+                if (this.scheduledStartTime === currentTimeStr && !this.isRunning && this.timeLeft === this.totalSeconds) {
+                    this.start();
+                    this.scheduledStartTime = ""; 
+                    this.updateUI();
+                }
+            }
+
+            toggle() {
+                if (this.isRunning) this.pause();
+                else this.start();
+                updateGlobalUIState();
+            }
+
+            start() {
+                if (this.isRunning || this.timeLeft <= 0) return;
+                this.isRunning = true;
+                this.toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>`;
+                this.toggleBtn.classList.replace('bg-[#D52B1E]', 'bg-amber-500');
+                this.timerId = setInterval(() => {
+                    if (this.timeLeft > 0) { 
+                        this.timeLeft--; 
+                        this.updateUI(); 
+                    } else {
+                        this.pause();
+                        this.updateUI();
+                    }
+                }, 1000);
+            }
+
+            pause() {
+                clearInterval(this.timerId);
+                this.isRunning = false;
+                this.toggleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>`;
+                this.toggleBtn.classList.replace('bg-amber-500', 'bg-[#D52B1E]');
+                updateGlobalUIState();
+            }
+
+            reset() {
+                this.pause();
+                this.timeLeft = this.totalSeconds;
+                this.updateUI();
+            }
+
+            openEdit() {
+                activeEditingTimer = this;
+                modalTitleInput.value = this.title;
+                modalDurationInput.value = Math.floor(this.totalSeconds / 60);
+                modalStartTimeInput.value = this.scheduledStartTime;
+                editModal.classList.remove('hidden');
+            }
+
+            save(newTitle, newMinutes, startTime) {
+                this.title = newTitle;
+                this.totalSeconds = newMinutes * 60;
+                this.scheduledStartTime = startTime;
+                this.reset();
+            }
+        }
+
+        window.addEventListener('load', () => {
+            timerConfigs.forEach(conf => timers.push(new Timer(conf, timersList)));
+            setInterval(updateGlobalClock, 1000);
+            updateGlobalClock();
+        });
+
+        modalCancel.onclick = () => {
+            editModal.classList.add('hidden');
+            activeEditingTimer = null;
+        };
+
+        modalSave.onclick = () => {
+            if (activeEditingTimer) {
+                const t = modalTitleInput.value.trim() || 'Session';
+                const d = parseInt(modalDurationInput.value) || 1;
+                const s = modalStartTimeInput.value;
+                activeEditingTimer.save(t, d, s);
+            }
+            editModal.classList.add('hidden');
+        };
+    </script>
+</body>
+</html>
